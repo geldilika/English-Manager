@@ -10,7 +10,7 @@ def get_engine():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     return create_engine(f"sqlite:///{DB_PATH}", future=True)
 
-sessionLocal = sessionmaker(bind=get_engine(), autoflush=False, autocommit=False)
+SessionLocal = sessionmaker(bind=get_engine(), autoflush=False, autocommit=False)
 
 def init_db():
     engine = get_engine()
