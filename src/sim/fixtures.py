@@ -21,9 +21,9 @@ def round_robin(team_ids):
             if a is not None and b is not None:
                 pairs.append((a,b))
                 
-            schedule.append(pairs)
+        schedule.append(pairs)
             
-            ids = [ids[0]] + [ids[-1]] + ids[1:-1]
+        ids = [ids[0]] + [ids[-1]] + ids[1:-1]
             
     return schedule
 
