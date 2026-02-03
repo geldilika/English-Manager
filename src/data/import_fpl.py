@@ -163,6 +163,3 @@ def import_pl_from_fpl(db, season):
         ))
         
     db.commit()
-
-
-
