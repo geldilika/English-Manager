@@ -1,12 +1,7 @@
-# Python cache
+cat >> .gitignore << 'EOF'
 __pycache__/
 *.pyc
-
-# SQLite database
 data/*.db
-
-# Virtual environment
 .venv/
-
-# macOS
 .DS_Store
+EOF
