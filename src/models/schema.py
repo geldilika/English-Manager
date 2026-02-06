@@ -41,6 +41,8 @@ class Player(Base):
     minutes = Column(Integer, default=0)
     total_points = Column(Integer, default=0)
     now_cost = Column(Integer, default=0)
+    
+    value = Column(Integer, nullable=False, default=0)
 
 class Fixture(Base):
     __tablename__ = "fixtures"
@@ -65,3 +67,16 @@ class Result(Base):
 
     home_shots = Column(Integer, nullable=False)
     away_shots = Column(Integer, nullable=False)
+    
+class Transfer(Base):
+    __tablename__ = "transfers"
+    id = Column(Integer, primary_key=True)
+    
+    season = Column(String, nullable=False)
+    matchday = Column(Integer, nullable = False)
+    
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+    from_team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
+    to_team_id = Column(Integer, ForeignKey("teams.id"), nullable = False)
+    
+    fee = Column(Integer, nullable = False)
