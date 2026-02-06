@@ -96,7 +96,11 @@ def run_menu(db, league, season, managed_team):
                 print_matchday(db, league.id, season, md)
                 
         elif choice == "3":
-            league_table(db, league.id, season)
+            played = current_matchday - 1
+            if played < 1:
+                console.print("[yellow]No matchdays played yet.[/yellow]")
+            else:
+                league_table(db, league.id, season, up_to_matchday=played)
 
         elif choice == "4":
             team = db.query(Team).get(managed_team.id)

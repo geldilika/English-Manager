@@ -31,7 +31,7 @@ def print_matchday(db, league_id, season, matchday):
 
     console.print(table)
 
-def league_table(db, league_id, season):
+def league_table(db, league_id, season, up_to_matchday=None):
     teams = db.query(Team).filter_by(league_id=league_id).all()
     name = {}
     for t in teams:
@@ -48,13 +48,20 @@ def league_table(db, league_id, season):
             "GA": 0,
             "Pts": 0
         }
-    
-    rows = (
+        
+    query = (
         db.query(Result, Fixture)
         .join(Fixture, Result.fixture_id == Fixture.id)
-        .filter(Fixture.league_id == league_id, Fixture.season == season)
-        .all()
+        .filter(
+            Fixture.league_id == league_id,
+            Fixture.season == season
+        )
     )
+    
+    if up_to_matchday is not None:
+        query = query.filter(Fixture.matchday <= up_to_matchday)
+    
+    rows = query.all()
 
     for result, fixture in rows:
         home = fixture.home_team_id
