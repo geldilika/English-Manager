@@ -63,3 +63,50 @@ def show_my_club(db, team):
             str(int(p.defend)),
         )
     console.print(table)
+    
+def run_menu(db, league, season, managed_team):
+    current_matchday = 1
+    
+    while True:
+        console.print("\n[bold]==== Manager Menu ==== [/bold]")
+        console.print(f"Season: {season} | Matchday: {current_matchday}")
+        console.print(f"Managing: {managed_team.name}")
+        console.print("1) Simulate next matchday")
+        console.print("2) Show last matchday results")
+        console.print("3) Show league table")
+        console.print("4) Show my club (squad + budget)")
+        console.print("5) Transfers (coming next)")
+        console.print("0) Exit")
+
+        choice = input("Choose: ").strip()
+        
+        if choice == "1":
+            simulate_matchday(db, league.id, season, current_matchday)
+            print_matchday(db, league.id, season, current_matchday)
+            current_matchday += 1
+            if current_matchday > 38:
+                current_matchday = 38
+                console.print("Season finished.")
+
+        elif choice == "2":
+            md = current_matchday - 1
+            if md < 1:
+                console.print("No matchdays played yet.")
+            else:
+                print_matchday(db, league.id, season, md)
+                
+        elif choice == "3":
+            league_table(db, league.id, season)
+
+        elif choice == "4":
+            team = db.query(Team).get(managed_team.id)
+            show_my_club(db, team)
+
+        elif choice == "5":
+            console.print("Transfers menu not yet added.")
+
+        elif choice == "0":
+            console.print("Thanks for playing.")
+            return
+        else:
+            console.print("Invalid option.")
