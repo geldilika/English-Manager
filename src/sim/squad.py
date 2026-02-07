@@ -206,3 +206,41 @@ def get_bench_players(db, season, team_id):
             
     players.sort(key=attrgetter("overall"), reverse=True)
     return players
+
+def avg_overall(players):
+    if not players:
+        return 0.0
+    total = 0.0
+    for p in players:
+        total += float(p.overall)
+    return total / float(len(players))
+
+def stars_from_avg(avg):
+    if avg >= 88:
+        return 5
+    if avg >= 82:
+        return 4
+    if avg >= 76:
+        return 3
+    if avg >= 70:
+        return 2
+    return 1
+
+def squad_star_ratings(db, season, team_id):
+    xi = get_starting_xi(db, season, team_id)
+    bench = get_bench_players(db, season, team_id)
+    
+    xi_avg = avg_overall(xi)
+    bench_avg = avg_overall(bench)
+    
+    xi_stars=stars_from_avg(xi_avg)
+    bench_stars=stars_from_avg(bench_avg)
+    
+    return {
+        "xi_avg": xi_avg,
+        "xi_stars": xi_stars,
+        "bench_avg": bench_avg,
+        "bench_stars": bench_stars,
+        "xi_count": len(xi),
+        "bench_count": len(bench),
+    }
