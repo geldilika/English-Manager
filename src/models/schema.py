@@ -1,5 +1,7 @@
+from datetime import datetime
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, Float, ForeignKey, UniqueConstraint
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -41,6 +43,8 @@ class Player(Base):
     minutes = Column(Integer, default=0)
     total_points = Column(Integer, default=0)
     now_cost = Column(Integer, default=0)
+    
+    value = Column(Integer, nullable=False, default=0)
 
 class Fixture(Base):
     __tablename__ = "fixtures"
@@ -65,3 +69,57 @@ class Result(Base):
 
     home_shots = Column(Integer, nullable=False)
     away_shots = Column(Integer, nullable=False)
+    
+class Transfer(Base):
+    __tablename__ = "transfers"
+    id = Column(Integer, primary_key=True)
+    
+    season = Column(String, nullable=False)
+    matchday = Column(Integer, nullable = False)
+    
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+    from_team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
+    to_team_id = Column(Integer, ForeignKey("teams.id"), nullable = False)
+    
+    fee = Column(Integer, nullable = False)
+    
+class Shortlist(Base):
+    __tablename__ = "shortlist"
+
+    id = Column(Integer, primary_key=True)
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("team_id", "player_id", name="uq_shortlist_team_player"),
+    )
+    
+class TransferList(Base):
+    __tablename__ = "transfer_list"
+
+    id = Column(Integer, primary_key=True)
+    season = Column(String, nullable=False)
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False) 
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+    asking_price = Column(Integer, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("season", "player_id", name="uq_transfer_list_season_player"),
+    )
+    
+class TransferBid(Base):
+        __tablename__ = "transfer_bids"
+
+        id = Column(Integer, primary_key=True)
+        season = Column(String, nullable=False)
+        matchday = Column(Integer, nullable=False)
+
+        player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+        from_team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+        to_team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+
+        fee = Column(Integer, nullable=False)
+        status = Column(String, nullable=False, default="PENDING")
+        created_at = Column(DateTime, server_default=func.now(), nullable=False)
