@@ -2,7 +2,7 @@ from operator import attrgetter
 from rich.console import Console
 from rich.table import Table
 
-from src.sim.squad import get_starting_xi, set_starting_xi
+from src.sim.squad import get_starting_xi, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS
 from src.models.schema import Team, Player
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
@@ -80,6 +80,7 @@ def run_menu(db, league, season, managed_team):
         console.print("5) Transfers")
         console.print("6) Set Starting XI")
         console.print("7) Show Starting XI")
+        console.print("8) Set Formation")
         console.print("0) Exit")
 
         choice = input("Choose: ").strip()
@@ -102,7 +103,7 @@ def run_menu(db, league, season, managed_team):
         elif choice == "3":
             played = current_matchday - 1
             if played < 1:
-                console.print("[yellow]No matchdays played yet.[/yellow]")
+                console.print("No matchdays played yet.")
             else:
                 league_table(db, league.id, season, up_to_matchday=played)
 
@@ -357,7 +358,9 @@ def run_menu(db, league, season, managed_team):
             t.add_column("#", justify="right")
             t.add_column("Name")
             t.add_column("Pos", justify="center")
-            t.add_column("Overall", justify="right")      
+            t.add_column("Overall", justify="right") 
+            t.add_column("Attack", justify="right")
+            t.add_column("Defend", justify="right")     
             
             i = 1
             for p in squad:
@@ -428,6 +431,39 @@ def run_menu(db, league, season, managed_team):
                 i += 1
 
             console.print(t)
+            
+        elif choice == "8":
+            current = get_team_formation(db, season, managed_team.id)
+            console.print(f"Current formation: {current}")
+            
+            t = Table(title="Formations")
+            t.add_column("#", justify="right")
+            t.add_column("Formation")
+            t.add_column("Shape")
+            
+            keys = list(FORMATIONS.keys())
+            i = 1
+            for f in keys:
+                req = FORMATIONS[f]
+                shape = f"GK{req['GK']} DEF{req['DEF']} MID{req['MID']} FWD{req['FWD']}"
+                t.add_row(str(i), f, shape)
+                i += 1
+                
+            console.print(t)
+            
+            pick = input("Choose formation #?: ").strip()
+            if not pick.isdigit():
+                console.print("Invalid number")
+                continue
+
+            n = int(pick)
+            if n < 1 or n > len(keys):
+                console.print("Out of range")
+                continue
+
+            formation = keys[n - 1]
+            ok, msg = set_team_formation(db, season, managed_team.id, formation)
+            console.print(msg)
             
         elif choice == "0":
             console.print("Thanks for playing.")
