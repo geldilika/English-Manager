@@ -1,5 +1,5 @@
 from sqlalchemy import or_
-from src.models.schema import Team, Player, Transfer, Shortlist
+from src.models.schema import Team, Player, Transfer, Shortlist, TransferList
 
 def list_targets(db, league_id, exclude_team_id, limit=20, order_by="value"):
     q = (
@@ -162,3 +162,38 @@ def sell_player(db, season, matchday, seller_team_id, buyer_team_id, player_id, 
 
     db.commit()
     return True, f"Sold {player.name} to {buyer.name} for £{fee:,}"
+
+def list_player_for_transfer(db, season, team_id, player_id, asking_price):
+    player = db.get(Player, player_id)
+    if not player or player.team_id != team_id:
+        return False, "Player not in your team"
+
+    if asking_price <= 0:
+        return False, "Asking price must be > 0"
+
+    exists = (
+        db.query(TransferList)
+        .filter(TransferList.season == season, TransferList.player_id == player_id)
+        .first()
+    )
+    if exists:
+        exists.asking_price = asking_price
+    else:
+        db.add(TransferList(season=season, team_id=team_id, player_id=player_id, asking_price=asking_price))
+
+    db.commit()
+    return True, f"Listed {player.name} for £{asking_price:,}"
+
+
+def unlist_player(db, season, team_id, player_id):
+    row = (
+        db.query(TransferList)
+        .filter(TransferList.season == season, TransferList.team_id == team_id, TransferList.player_id == player_id)
+        .first()
+    )
+    if not row:
+        return False, "Player not on transfer list"
+
+    db.delete(row)
+    db.commit()
+    return True, "Removed from transfer list"
