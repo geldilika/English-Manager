@@ -2,7 +2,7 @@ from operator import attrgetter
 from rich.console import Console
 from rich.table import Table
 
-from src.sim.squad import get_starting_xi, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS
+from src.sim.squad import get_bench_players, get_starting_xi, set_bench, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS
 from src.models.schema import Team, Player
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
@@ -81,6 +81,8 @@ def run_menu(db, league, season, managed_team):
         console.print("6) Set Starting XI")
         console.print("7) Show Starting XI")
         console.print("8) Set Formation")
+        console.print("9) Set Bench")
+        console.print("10) Show Bench")
         console.print("0) Exit")
 
         choice = input("Choose: ").strip()
@@ -464,6 +466,83 @@ def run_menu(db, league, season, managed_team):
             formation = keys[n - 1]
             ok, msg = set_team_formation(db, season, managed_team.id, formation)
             console.print(msg)
+            
+        elif choice == "9":
+            squad = db.query(Player).filter_by(team_id=managed_team.id).all()
+            if len(squad) < 18:
+                console.print("Not enough players (need at least 18 for XI + bench).")
+                continue
+            
+            squad.sort(key=attrgetter("overall"), reverse=True)
+            
+            t = Table(title="Select Bench (Choose 7 numbers)")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right")
+            t.add_column("Attack", justify="right")
+            t.add_column("Defend", justify="right")
+            
+            i = 1
+            for p in squad:
+                t.add_row(str(i), p.name, p.pos, str(int(p.overall)))
+                i += 1
+            
+            console.print(t)
+            
+            picks = input("Enter 7 numbers separated by commas: ").strip()
+            parts = picks.split(",")
+            
+            if len(parts) != 7:
+                console.print("You must select exactly 7 players.")
+                continue
+            
+            player_ids = []
+            ok = True
+            
+            for part in parts:
+                part = part.strip()
+                if not part.isdigit():
+                    ok = False
+                    break
+                
+                n = int(part)
+                if n < 1 or n > len(squad):
+                    ok = False
+                    break
+                
+                player_ids.append(squad[n-1].id)
+                
+            if not ok:
+                console.print("Invalid selection.")
+                continue
+            
+            if len(set(player_ids)) != 7:
+                console.print("Duplicate selections not allowed.")
+                continue
+            
+            ok, msg = set_bench(db, season, managed_team.id, player_ids)
+            console.print(msg)
+            
+        elif choice == "10":
+            bench = get_bench_players(db, season, managed_team.id)
+
+            if not bench:
+                console.print("No bench set.")
+                continue
+            
+            t = Table(title="Bench")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right")
+            
+            i = 1
+            for p in bench:
+                t.add_row(str(i), p.name, p.pos, str(int(p.overall)))
+                i += 1
+
+            console.print(t)
             
         elif choice == "0":
             console.print("Thanks for playing.")
