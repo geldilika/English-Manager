@@ -31,6 +31,12 @@ FORMATIONS = {
 
 BENCH_SIZE = 7
 
+TACTICS = {
+    "Attacking":  {"atk": 1.10, "def": 0.90},
+    "Balanced":   {"atk": 1.00, "def": 1.00},
+    "Defensive":  {"atk": 0.90, "def": 1.10},
+}
+
 def set_starting_xi(db, season, team_id, player_ids):
     if len(player_ids) != 11:
         return False, "You must select exactly 11 players"
@@ -244,3 +250,33 @@ def squad_star_ratings(db, season, team_id):
         "xi_count": len(xi),
         "bench_count": len(bench),
     }
+    
+def get_team_tactic(db, season, team_id):
+    row = (
+        db.query(TeamTactics)
+        .filter(TeamTactics.season == season)
+        .filter(TeamTactics.team_id == team_id)
+        .first()
+    )
+    if row and row.tactic:
+        return row.tactic
+    return "Balanced"
+
+def set_team_tactic(db, season, team_id, tactic):
+    if tactic not in TACTICS:
+        return False, "Invalid tactic"
+
+    row = (
+        db.query(TeamTactics)
+        .filter(TeamTactics.season == season)
+        .filter(TeamTactics.team_id == team_id)
+        .first()
+    )
+
+    if row:
+        row.tactic = tactic
+    else:
+        db.add(TeamTactics(season=season, team_id=team_id, formation="4-3-3", tactic=tactic))
+
+    db.commit()
+    return True, f"Tactic set to {tactic}"

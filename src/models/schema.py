@@ -143,7 +143,10 @@ class TeamTactics(Base):
     id = Column(Integer, primary_key=True)
     season = Column(String, nullable=False)
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    
     formation = Column(String, nullable=False, default="4-3-3")
+    tactic = Column(String, nullable=False, default="Balanced")
+
 
     __table_args__ = (
         UniqueConstraint("season", "team_id", name="uq_team_tactics_season_team"),
