@@ -133,6 +133,8 @@ class Lineup(Base):
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
     player_id = Column(Integer, ForeignKey("players.id"), nullable = False)
     
+    role = Column(String, nullable=False, default="START")
+    
     is_starting = Column(Boolean, default=True)
     
 class TeamTactics(Base):
