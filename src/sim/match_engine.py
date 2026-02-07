@@ -1,8 +1,10 @@
 import random
-from src.models.schema import Player, Result
 
-def team_strength(db, team_id):
-    players = db.query(Player).filter_by(team_id=team_id).all()
+from sqlalchemy import desc
+from src.models.schema import Player, Result, Lineup
+
+def team_strength(db, season, team_id):
+    players = get_starting_xi(db, season, team_id)
     if not players:
         return 50.0, 50.0
 
@@ -27,13 +29,13 @@ def goals_from_xg(xg):
             goals += 1
     return goals
 
-def simulate_fixture(db, fixture):
+def simulate_fixture(db, season, fixture):
     existing = db.query(Result).filter_by(fixture_id=fixture.id).first()
     if existing:
         return existing
     
-    home_atk, home_def = team_strength(db, fixture.home_team_id)
-    away_atk, away_def = team_strength(db, fixture.away_team_id)
+    home_atk, home_def = team_strength(db, season, fixture.home_team_id)
+    away_atk, away_def = team_strength(db, season, fixture.away_team_id)
     
     home_xg = 1.25 + (home_atk - away_def) * 0.015 + random.gauss(0, 0.12)
     away_xg = 1.10 + (away_atk - home_def) * 0.015 + random.gauss(0, 0.12)
@@ -61,3 +63,29 @@ def simulate_fixture(db, fixture):
 
     db.add(result)
     return result
+
+def get_starting_xi(db, season, team_id):
+    rows = (
+        db.query(Lineup)
+        .filter(Lineup.season == season)
+        .filter(Lineup.team_id == team_id)
+        .filter(Lineup.is_starting == True)
+        .all()
+    )
+    
+    players = []
+    for r in rows:
+        p = db.get(Player, r.player_id)
+        if p is not None and p.team_id == team_id:
+            players.append(p)
+            
+    if len(players) != 11:
+        players = (
+            db.query(Player)
+            .filter(Player.team_id == team_id)
+            .order_by(Player.overall,desc())
+            .limit(11)
+            .all()
+        )
+        
+    return players
