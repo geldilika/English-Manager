@@ -2,7 +2,7 @@ from operator import attrgetter
 from rich.console import Console
 from rich.table import Table
 
-from src.sim.squad import get_bench_players, get_starting_xi, set_bench, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS
+from src.sim.squad import get_bench_players, get_starting_xi, set_bench, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS, squad_star_ratings
 from src.models.schema import Team, Player
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
@@ -42,9 +42,20 @@ def find_team(db, league_id, name):
             return t
     return None
 
-def show_my_club(db, team):
+def show_my_club(db, season, team):
     console.print(f"My Club: {team.name}")
     console.print(f"Budget: £{team.budget:,}")
+    
+    ratings = squad_star_ratings(db, season, team.id)
+    
+    console.print(
+    f"Starting XI: {ratings['xi_stars']}★  "
+    f"(avg {ratings['xi_avg']:.1f}, players {ratings['xi_count']}/11)"
+    )
+    console.print(
+        f"Squad Depth: {ratings['bench_stars']}★  "
+        f"(avg {ratings['bench_avg']:.1f}, bench {ratings['bench_count']}/7)"
+    )
     
     players = db.query(Player).filter_by(team_id=team.id).all()
     players.sort(key=attrgetter("overall"), reverse=True)
@@ -111,7 +122,7 @@ def run_menu(db, league, season, managed_team):
 
         elif choice == "4":
             team = db.query(Team).get(managed_team.id)
-            show_my_club(db, team)
+            show_my_club(db, season, team)
 
         elif choice == "5":
             last_search = []
