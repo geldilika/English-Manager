@@ -4,8 +4,22 @@ from sqlalchemy import desc
 from src.models.schema import Player, Result, Lineup
 
 def team_strength(db, season, team_id):
-    players = get_starting_xi(db, season, team_id)
+    rows = (
+        db.query(Lineup)
+        .filter(Lineup.season == season)
+        .filter(Lineup.team_id == team_id)
+        .filter(Lineup.role == "START")
+        .all()
+    )
+    
+    players = []
+    for r in rows:
+        p = db.get(Player, r.player_id)
+        if p and p.team_id == team_id:
+            players.append(p)
+            
     if not players:
+        players = get_starting_xi(db, season, team_id)
         return 50.0, 50.0
 
     atk_total = 0.0
