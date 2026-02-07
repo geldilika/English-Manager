@@ -43,6 +43,20 @@ def normalize(values):
 def clip_rating(x):
     return float(np.clip(x, 0.0, 100.0))
 
+def get_birth_dates():
+    url = "https://fantasy.premierleague.com/api/bootstrap-static/"
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+
+    birth_map = {}
+    for p in data["elements"]:
+        dob = p.get("birth_date")
+        if dob:
+            birth_map[int(p["id"])] = dob
+    return birth_map
+
+
 def import_pl_from_fpl(db, season):
     league = premier_league(db)
     teams_url = RAW_BASE + "/data/" + season + "/teams.csv"
@@ -51,6 +65,8 @@ def import_pl_from_fpl(db, season):
     teams_df = read_csv(teams_url)
     players_df = read_csv(players_url)
     
+    birth_by_id = get_birth_dates()
+
     teams = {}
     for _, row in teams_df.iterrows():
         fpl_team_id = int(row["id"])
@@ -62,12 +78,21 @@ def import_pl_from_fpl(db, season):
                 reputation = float(np.clip(55 + strength *8, 35, 95))
             else:
                 reputation = 70.0
+                
+            if reputation >= 85:
+                budget = 80_000_000
+            elif reputation >= 75:
+                budget = 55_000_000
+            elif reputation >= 65:
+                budget = 35_000_000
+            else:
+                budget = 20_000_000
 
             team = Team(
                 name=team_name,
                 league_id=league.id,
                 fpl_team_id=fpl_team_id,
-                budget=25_000_000,
+                budget=budget,
                 reputation=reputation,
             )
             db.add(team)
@@ -112,10 +137,7 @@ def import_pl_from_fpl(db, season):
         if (first or second):
             name = (first + " " + second).strip()
         else:
-            if web:
-                name = web
-            else:
-                "Unkown"
+            name = web if web else "Unknown"
         
         pos = position_code(row.get("element_type", 3))
         
@@ -144,10 +166,71 @@ def import_pl_from_fpl(db, season):
         except:
             now_cost = 0
             
+        fpl_id = int(row.get("id", 0))
+        
+        dob = birth_by_id.get(fpl_id)
+
+        if dob:
+            dob_dt = pd.to_datetime(dob, errors="coerce")
+            if pd.notna(dob_dt):
+                age = int((pd.Timestamp.today() - dob_dt).days / 365.25)
+
+        age = int(np.clip(age, 16, 40))
+
+
+        if pos == "FWD":
+            quality = (0.80 * attack) + (0.15 * overall) + (0.05 * stamina)
+        elif pos == "MID":
+            quality = (0.55 * attack) + (0.25 * overall) + (0.20 * stamina)
+        elif pos == "DEF":
+            quality = (0.70 * defend) + (0.20 * overall) + (0.10 * stamina)
+        else:  # GK
+            quality = (0.75 * defend) + (0.20 * overall) + (0.05 * stamina)
+
+        quality = float(np.clip(quality, 1.0, 100.0))
+
+        if age <= 20:
+            age_factor = 1.35
+        elif age <= 24:
+            age_factor = 1.15
+        elif age <= 29:
+            age_factor = 1.00
+        elif age <= 32:
+            age_factor = 0.80
+        else:
+            age_factor = 0.60
+
+        if pos == "GK":
+            pos_factor = 0.70
+        elif pos == "DEF":
+            pos_factor = 0.90
+        elif pos == "MID":
+            pos_factor = 1.05
+        else: 
+            pos_factor = 1.25
+
+        rep_factor = 0.85 + (float(team.reputation) / 100.0) * 0.45
+
+        base_year = 2024
+        try:
+            year = int(str(season).split("-")[0])
+        except:
+            year = base_year
+        inflation = 1.0 + max(0, year - base_year) * 0.04
+
+        model_value = (quality ** 2) * 10_000
+        model_value *= age_factor * pos_factor * rep_factor * inflation
+
+        fpl_anchor = (now_cost / 10.0) * 1_000_000
+        value = int(0.50 * model_value + 0.50 * fpl_anchor)
+
+        value = int(np.clip(value, 1_000_000, 180_000_000))
+
+            
         db.add(Player(
             name=name,
             pos=pos,
-            age=24,
+            age=age,
             team_id=team.id,
 
             fpl_player_id=fpl_player_id,
@@ -160,6 +243,8 @@ def import_pl_from_fpl(db, season):
             minutes=minutes,
             total_points=total_points,
             now_cost=now_cost,
+            
+            value=value,
         ))
         
-    db.commit()
+    db.commit()   
