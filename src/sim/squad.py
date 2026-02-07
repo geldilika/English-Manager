@@ -29,6 +29,8 @@ FORMATIONS = {
     "5-4-1-0": {"GK": 1, "DEF": 5, "MID": 5, "FWD": 0}
 }
 
+BENCH_SIZE = 7
+
 def set_starting_xi(db, season, team_id, player_ids):
     if len(player_ids) != 11:
         return False, "You must select exactly 11 players"
@@ -142,3 +144,65 @@ def validate_xi(players, formation):
         return False, msg
     
     return True, "OK"
+
+def set_bench(db, season, team_id, player_ids):
+    if len(player_ids) != BENCH_SIZE:
+        return False, f"You must select exactly {BENCH_SIZE} bench players"
+    
+    players = []
+    for pid in player_ids:
+        p = db.get(Player, pid)
+        if p is None or p.team_id != team_id:
+            return False, "Invalid bench selection"
+        players.append(p)
+        
+    starters = (
+        db.query(Lineup)
+        .filter(Lineup.season == season)
+        .filter(Lineup.team_id == team_id)
+        .filter(Lineup.role == "START")
+        .all()
+    )
+    
+    starter_ids = set()
+    for r in starters:
+        starter_ids.add(int(r.player_id))
+        
+    for p in players:
+        if int(p.id) in starter_ids:
+            return False, f"{p.name} is already in the starting XI"
+        
+    db.query(Lineup).filter(
+        Lineup.season == season,
+        Lineup.team_id == team_id,
+        Lineup.role == "BENCH"
+    ).delete()
+    
+    for p in players:
+        db.add(Lineup(
+            season = season,
+            team_id = team_id,
+            player_id = p.id,
+            role = "BENCH"
+        ))
+    
+    db.commit()
+    return True, "Bench saved"
+
+def get_bench_players(db, season, team_id):
+    rows = (
+        db.query(Lineup)
+        .filter(Lineup.season == season)
+        .filter(Lineup.team_id == team_id)
+        .filter(Lineup.role == "BENCH")
+        .all()
+    )
+    
+    players = []
+    for r in rows:
+        p = db.get(Player, r.player_id)
+        if p and p.team_id == team_id:
+            players.append(p)
+            
+    players.sort(key=attrgetter("overall"), reverse=True)
+    return players
