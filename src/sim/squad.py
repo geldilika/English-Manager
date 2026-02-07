@@ -1,7 +1,7 @@
 from operator import attrgetter
 from src.models.schema import Lineup, Player, TeamTactics
 
-Formations = {
+FORMATIONS = {
     "3-5-2": {"GK": 1, "DEF": 3, "MID": 5, "FWD": 2},
     "3-4-3": {"GK": 1, "DEF": 3, "MID": 4, "FWD": 3},
     "3-1-4-2": {"GK": 1, "DEF": 3, "MID": 5, "FWD": 2},
@@ -33,21 +33,33 @@ def set_starting_xi(db, season, team_id, player_ids):
     if len(player_ids) != 11:
         return False, "You must select exactly 11 players"
     
+    players = []
+    for pid in player_ids:
+        p = db.get(Player, pid)
+        if p is None or p.team_id != team_id:
+            return False, "Invalid Player Selection"
+        players.append(p)
+        
+    formation = get_team_formation(db, season, team_id)
+    ok, msg = validate_xi(players, formation)
+    if not ok:
+        return False, msg
+    
     db.query(Lineup).filter(
         Lineup.season == season,
-        Lineup.team_id == team_id
+        Lineup.team_id == team_id,
     ). delete()
     
-    for pid in player_ids:
+    for p in player_ids:
         db.add(Lineup(
             season = season,
             team_id = team_id,
-            player_id = pid,
+            player_id = p,
             is_starting = True
         ))
         
     db.commit()
-    return True, "Starting XI saved"
+    return True, f"Starting XI saved({formation})"
 
 def get_starting_xi(db, season, team_id):
     rows = (
@@ -79,7 +91,7 @@ def get_team_formation(db, season, team_id):
     return "4-3-3"
 
 def set_team_formation(db, season, team_id, formation):
-    if formation not in Formations:
+    if formation not in FORMATIONS:
         return False, "Invalid formation"
     
     row = (
@@ -96,3 +108,37 @@ def set_team_formation(db, season, team_id, formation):
         
     db.commit()
     return True, f"Formation set to {formation}"
+
+def validate_xi(players, formation):
+    if formation not in FORMATIONS:
+        return False, "Unknown formation"
+    
+    req = FORMATIONS[formation]
+    
+    counts = {"GK": 0, "DEF": 0, "MID": 0, "FWD": 0}
+    for p in players:
+        pos = str(p.pos)
+        if pos in counts:
+            counts[pos] += 1
+            
+    if len(players) != 11:
+        return False, "You must select exactly 11 players"
+    
+    missing = []
+    extra = []
+    
+    for pos in req:
+        if counts[pos] < req[pos]:
+            missing.append(f"{pos} ({counts[pos]}/{req[pos]})")
+        if counts[pos] > req[pos]:
+            extra.append(f"{pos} ({counts[pos]}/{req[pos]})")
+            
+    if missing or extra:
+        msg = "Invalid XI for formation " + formation + ". "
+        if missing:
+            msg += "Missing: " + ", ".join(missing) + ". "
+        if extra:
+            msg += "Too many " + ", ".join(extra) + "."
+        return False, msg
+    
+    return True, "OK"
