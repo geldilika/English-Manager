@@ -216,13 +216,13 @@ def avg_overall(players):
     return total / float(len(players))
 
 def stars_from_avg(avg):
-    if avg >= 88:
+    if avg >= 50:
         return 5
-    if avg >= 82:
+    if avg >= 45:
         return 4
-    if avg >= 76:
+    if avg >= 40:
         return 3
-    if avg >= 70:
+    if avg >= 35:
         return 2
     return 1
 
