@@ -2,6 +2,7 @@ from operator import attrgetter
 from rich.console import Console
 from rich.table import Table
 
+from src.sim.squad import get_starting_xi, set_starting_xi
 from src.models.schema import Team, Player
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
@@ -77,6 +78,8 @@ def run_menu(db, league, season, managed_team):
         console.print("3) Show league table")
         console.print("4) Show my club (squad + budget)")
         console.print("5) Transfers")
+        console.print("6) Set Starting XI")
+        console.print("7) Show Starting XI")
         console.print("0) Exit")
 
         choice = input("Choose: ").strip()
@@ -341,6 +344,91 @@ def run_menu(db, league, season, managed_team):
                 else:
                     console.print("Invalid option")
 
+        elif choice == "6":
+            squad = db.query(Player).filter_by(team_id=managed_team.id).all()
+            
+            if len(squad) < 11:
+                console.print("Not enough players in squad")
+                continue
+            
+            squad.sort(key=attrgetter("overall"), reverse=True)
+
+            t = Table(title="Select Starting XI (Choose 11 numbers)")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right")      
+            
+            i = 1
+            for p in squad:
+                t.add_row(str(i), p.name, p.pos, str(int(p.overall)))
+                i += 1
+            
+            console.print(t)
+            
+            picks = input("Enter 11 numbers separated by commas: ").strip()
+            
+            parts = picks.split(",")
+            if len(parts) != 11:
+                console.print("You must select exactly 11 players")
+                continue
+            
+            player_ids = []
+            
+            valid = True
+            for part in parts:
+                part = part.strip()
+                if not part.isdigit():
+                    valid = False
+                    break
+                
+                n = int(part)
+                if n < 1 or n > len(squad):
+                    valid = False
+                    break
+                
+                player_ids.append(squad[n - 1].id)
+                
+            if not valid:
+                console.print("Invalid selection")
+                continue
+            
+            if len(set(player_ids)) != 11:
+                console.print("Duplicate selections not allowed.")
+                continue
+
+            ok, msg = set_starting_xi(db, season, managed_team.id, player_ids)
+            console.print(msg)
+        
+        elif choice =="7":
+            xi = get_starting_xi(db, season, managed_team.id)
+            
+            if not xi:
+                console.print("No Starting XI set. Using automatic selection.")
+                continue
+            
+            t = Table(title="Starting XI")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right")
+            t.add_column("Attack", justify="right")
+            t.add_column("Defend", justify="right")
+            
+            i = 1
+            for p in xi:
+                t.add_row(
+                    str(i),
+                    p.name,
+                    p.pos,
+                    str(int(p.overall)),
+                    str(int(p.attack)),
+                    str(int(p.defend)),
+                )
+                i += 1
+
+            console.print(t)
+            
         elif choice == "0":
             console.print("Thanks for playing.")
             return

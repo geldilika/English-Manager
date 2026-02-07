@@ -9,6 +9,6 @@ def simulate_matchday(db, league_id, season, matchday):
     ).all()
     
     for f in fixtures:
-        simulate_fixture(db, f)
+        simulate_fixture(db, season, f)
 
     db.commit()
