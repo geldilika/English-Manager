@@ -1,4 +1,3 @@
-from sqlalchemy import or_
 from src.models.schema import Team, Player, Transfer, Shortlist, TransferList
 
 def list_targets(db, league_id, exclude_team_id, limit=20, order_by="value"):
@@ -96,10 +95,35 @@ def buy_player(db, season, matchday, buyer_team_id, player_id, fee):
     if player.team_id == buyer.id:
         return False, "Player already in your team"
 
-    seller = db.get(Team, player.team_id) if player.team_id else None
-
     if fee <= 0:
         return False, "Fee must be > 0"
+    
+    if player.team_id:
+        seller = db.get(Team, player.team_id)
+    else:
+        seller = None
+
+    listed = None
+    if seller:
+        listed = (
+            db.query(TransferList)
+            .filter(
+                TransferList.season == season,
+                TransferList.player_id == player.id,
+                TransferList.team_id == seller.id
+            )
+            .first()
+        )
+
+    if listed:
+        asking = int(listed.asking_price)
+        min_fee = int(asking * 0.95)
+        if fee < min_fee:
+            return False, f"Offer too low. (asking £{asking:,})"
+    else:
+        min_fee = int(player.value)
+        if fee < min_fee:
+            return False, f"Offer too low. (value £{player.value:,})"
 
     if buyer.budget < fee:
         return False, "Not enough budget"
@@ -142,10 +166,39 @@ def sell_player(db, season, matchday, seller_team_id, buyer_team_id, player_id, 
 
     if fee <= 0:
         return False, "Fee must be > 0"
+    listed = (
+        db.query(TransferList)
+        .filter(
+            TransferList.season == season,
+            TransferList.player_id == player.id,
+            TransferList.team_id == seller.id
+        )
+        .first()
+    )
+    
+    if listed:
+        asking = int(listed.asking_price)
+
+        min_fee = int(asking * 0.95)
+        if fee < min_fee:
+            return False, f"Offer too low. (asking £{asking:,})"
+
+        max_fee = int(asking * 1.10) 
+        if fee > max_fee:
+            return False, f"Offer too high vs asking. (asking £{asking:,})"
+
+    else:
+        max_fee = int(player.value * 1.25)
+        if fee > max_fee:
+            return False, f"Fee too high. (value £{player.value:,})"
+
+        min_fee = int(player.value * 0.60)
+        if fee < min_fee:
+            return False, f"Offer too low. (value £{player.value:,})"
 
     if buyer.budget < fee:
         return False, "Buyer cannot afford this fee"
-
+    
     buyer.budget -= fee
     seller.budget += fee
 
@@ -159,6 +212,9 @@ def sell_player(db, season, matchday, seller_team_id, buyer_team_id, player_id, 
         to_team_id=buyer.id,
         fee=fee
     ))
+    
+    if listed:
+        db.delete(listed)
 
     db.commit()
     return True, f"Sold {player.name} to {buyer.name} for £{fee:,}"
@@ -172,10 +228,15 @@ def list_player_for_transfer(db, season, team_id, player_id, asking_price):
         return False, "Asking price must be > 0"
 
     exists = (
-        db.query(TransferList)
-        .filter(TransferList.season == season, TransferList.player_id == player_id)
-        .first()
+    db.query(TransferList)
+    .filter(
+        TransferList.season == season,
+        TransferList.player_id == player_id,
+        TransferList.team_id == team_id
     )
+    .first()
+    )
+
     if exists:
         exists.asking_price = asking_price
     else:
@@ -197,3 +258,18 @@ def unlist_player(db, season, team_id, player_id):
     db.delete(row)
     db.commit()
     return True, "Removed from transfer list"
+
+def get_transfer_list(db, season, team_id, limit=50, order_by="asking"):
+    q = (
+        db.query(Player, TransferList)
+        .join(TransferList, TransferList.player_id == Player.id)
+        .filter(TransferList.season == season)
+        .filter(TransferList.team_id == team_id)
+    )
+
+    if order_by == "value":
+        q = q.order_by(Player.value.desc())
+    else:
+        q = q.order_by(TransferList.asking_price.desc())
+
+    return q.limit(limit).all() 
