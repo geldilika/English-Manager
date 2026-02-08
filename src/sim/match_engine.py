@@ -2,6 +2,7 @@ import random
 
 from sqlalchemy import desc
 from src.models.schema import Player, Result, Lineup
+from src.sim.squad import get_team_tactic, TACTICS
 
 def team_strength(db, season, team_id):
     rows = (
@@ -31,6 +32,13 @@ def team_strength(db, season, team_id):
 
     attack = atk_total / len(players)
     defend = def_total / len(players)
+    
+    tactic = get_team_tactic(db, season, team_id)
+    mode = TACTICS.get(tactic, TACTICS["Balanced"])
+    
+    attack *= float(mode["atk"])
+    defend *= float(mode["def"])
+    
     return attack, defend
 
 def goals_from_xg(xg):
