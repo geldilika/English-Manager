@@ -2,7 +2,7 @@ from operator import attrgetter
 from rich.console import Console
 from rich.table import Table
 
-from src.sim.squad import get_bench_players, get_starting_xi, set_bench, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS, squad_star_ratings
+from src.sim.squad import get_bench_players, get_starting_xi, set_bench, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS, squad_star_ratings, set_team_tactic, get_team_tactic, TACTICS
 from src.models.schema import Team, Player
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
@@ -94,6 +94,7 @@ def run_menu(db, league, season, managed_team):
         console.print("8) Set Formation")
         console.print("9) Set Bench")
         console.print("10) Show Bench")
+        console.print("11) Set tactic")
         console.print("0) Exit")
 
         choice = input("Choose: ").strip()
@@ -554,6 +555,40 @@ def run_menu(db, league, season, managed_team):
                 i += 1
 
             console.print(t)
+            
+        elif choice == "11":
+            current = get_team_tactic(db, season, managed_team.id)
+            console.print(f"Current tactic: {current}")
+            
+            t = Table(title="Tactics")
+            t.add_column("#", justify="right")
+            t.add_column("Tactic")
+            t.add_column("Effect")
+
+            names = list(TACTICS.keys())
+            
+            i = 1
+            for name in names:
+                mode = TACTICS[name]
+                apply = f"ATK x{mode['atk']:.2f}, DEF x{mode['def']:.2f}"
+                t.add_row(str(i), name, apply)
+                i += 1
+
+            console.print(t)
+
+            pick = input("Choose tactic #?: ").strip()
+            if not pick.isdigit():
+                console.print("Invalid number")
+                continue
+
+            n = int(pick)
+            if n < 1 or n > len(names):
+                console.print("Out of range")
+                continue
+
+            tactic = names[n - 1]
+            ok, msg = set_team_tactic(db, season, managed_team.id, tactic)
+            console.print(msg)
             
         elif choice == "0":
             console.print("Thanks for playing.")
