@@ -2,6 +2,7 @@ from operator import attrgetter
 from rich.console import Console
 from rich.table import Table
 
+from src.sim.squad import get_bench_players, get_starting_xi, set_bench, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS, squad_star_ratings, set_team_tactic, get_team_tactic, TACTICS
 from src.models.schema import Team, Player
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
@@ -41,9 +42,20 @@ def find_team(db, league_id, name):
             return t
     return None
 
-def show_my_club(db, team):
+def show_my_club(db, season, team):
     console.print(f"My Club: {team.name}")
     console.print(f"Budget: £{team.budget:,}")
+    
+    ratings = squad_star_ratings(db, season, team.id)
+    
+    console.print(
+    f"Starting XI: {ratings['xi_stars']}★  "
+    f"(avg {ratings['xi_avg']:.1f}, players {ratings['xi_count']}/11)"
+    )
+    console.print(
+        f"Squad Depth: {ratings['bench_stars']}★  "
+        f"(avg {ratings['bench_avg']:.1f}, bench {ratings['bench_count']}/7)"
+    )
     
     players = db.query(Player).filter_by(team_id=team.id).all()
     players.sort(key=attrgetter("overall"), reverse=True)
@@ -77,6 +89,12 @@ def run_menu(db, league, season, managed_team):
         console.print("3) Show league table")
         console.print("4) Show my club (squad + budget)")
         console.print("5) Transfers")
+        console.print("6) Set Starting XI")
+        console.print("7) Show Starting XI")
+        console.print("8) Set Formation")
+        console.print("9) Set Bench")
+        console.print("10) Show Bench")
+        console.print("11) Set tactic")
         console.print("0) Exit")
 
         choice = input("Choose: ").strip()
@@ -99,13 +117,13 @@ def run_menu(db, league, season, managed_team):
         elif choice == "3":
             played = current_matchday - 1
             if played < 1:
-                console.print("[yellow]No matchdays played yet.[/yellow]")
+                console.print("No matchdays played yet.")
             else:
                 league_table(db, league.id, season, up_to_matchday=played)
 
         elif choice == "4":
             team = db.query(Team).get(managed_team.id)
-            show_my_club(db, team)
+            show_my_club(db, season, team)
 
         elif choice == "5":
             last_search = []
@@ -341,6 +359,237 @@ def run_menu(db, league, season, managed_team):
                 else:
                     console.print("Invalid option")
 
+        elif choice == "6":
+            squad = db.query(Player).filter_by(team_id=managed_team.id).all()
+            
+            if len(squad) < 11:
+                console.print("Not enough players in squad")
+                continue
+            
+            squad.sort(key=attrgetter("overall"), reverse=True)
+
+            t = Table(title="Select Starting XI (Choose 11 numbers)")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right") 
+            t.add_column("Attack", justify="right")
+            t.add_column("Defend", justify="right")     
+            
+            i = 1
+            for p in squad:
+                t.add_row(str(i), p.name, p.pos, str(int(p.overall)))
+                i += 1
+            
+            console.print(t)
+            
+            picks = input("Enter 11 numbers separated by commas: ").strip()
+            
+            parts = picks.split(",")
+            if len(parts) != 11:
+                console.print("You must select exactly 11 players")
+                continue
+            
+            player_ids = []
+            
+            valid = True
+            for part in parts:
+                part = part.strip()
+                if not part.isdigit():
+                    valid = False
+                    break
+                
+                n = int(part)
+                if n < 1 or n > len(squad):
+                    valid = False
+                    break
+                
+                player_ids.append(squad[n - 1].id)
+                
+            if not valid:
+                console.print("Invalid selection")
+                continue
+            
+            if len(set(player_ids)) != 11:
+                console.print("Duplicate selections not allowed.")
+                continue
+
+            ok, msg = set_starting_xi(db, season, managed_team.id, player_ids)
+            console.print(msg)
+        
+        elif choice =="7":
+            xi = get_starting_xi(db, season, managed_team.id)
+            
+            if not xi:
+                console.print("No Starting XI set. Using automatic selection.")
+                continue
+            
+            t = Table(title="Starting XI")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right")
+            t.add_column("Attack", justify="right")
+            t.add_column("Defend", justify="right")
+            
+            i = 1
+            for p in xi:
+                t.add_row(
+                    str(i),
+                    p.name,
+                    p.pos,
+                    str(int(p.overall)),
+                    str(int(p.attack)),
+                    str(int(p.defend)),
+                )
+                i += 1
+
+            console.print(t)
+            
+        elif choice == "8":
+            current = get_team_formation(db, season, managed_team.id)
+            console.print(f"Current formation: {current}")
+            
+            t = Table(title="Formations")
+            t.add_column("#", justify="right")
+            t.add_column("Formation")
+            t.add_column("Shape")
+            
+            keys = list(FORMATIONS.keys())
+            i = 1
+            for f in keys:
+                req = FORMATIONS[f]
+                shape = f"GK{req['GK']} DEF{req['DEF']} MID{req['MID']} FWD{req['FWD']}"
+                t.add_row(str(i), f, shape)
+                i += 1
+                
+            console.print(t)
+            
+            pick = input("Choose formation #?: ").strip()
+            if not pick.isdigit():
+                console.print("Invalid number")
+                continue
+
+            n = int(pick)
+            if n < 1 or n > len(keys):
+                console.print("Out of range")
+                continue
+
+            formation = keys[n - 1]
+            ok, msg = set_team_formation(db, season, managed_team.id, formation)
+            console.print(msg)
+            
+        elif choice == "9":
+            squad = db.query(Player).filter_by(team_id=managed_team.id).all()
+            if len(squad) < 18:
+                console.print("Not enough players (need at least 18 for XI + bench).")
+                continue
+            
+            squad.sort(key=attrgetter("overall"), reverse=True)
+            
+            t = Table(title="Select Bench (Choose 7 numbers)")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right")
+            t.add_column("Attack", justify="right")
+            t.add_column("Defend", justify="right")
+            
+            i = 1
+            for p in squad:
+                t.add_row(str(i), p.name, p.pos, str(int(p.overall)))
+                i += 1
+            
+            console.print(t)
+            
+            picks = input("Enter 7 numbers separated by commas: ").strip()
+            parts = picks.split(",")
+            
+            if len(parts) != 7:
+                console.print("You must select exactly 7 players.")
+                continue
+            
+            player_ids = []
+            ok = True
+            
+            for part in parts:
+                part = part.strip()
+                if not part.isdigit():
+                    ok = False
+                    break
+                
+                n = int(part)
+                if n < 1 or n > len(squad):
+                    ok = False
+                    break
+                
+                player_ids.append(squad[n-1].id)
+                
+            if not ok:
+                console.print("Invalid selection.")
+                continue
+            
+            if len(set(player_ids)) != 7:
+                console.print("Duplicate selections not allowed.")
+                continue
+            
+            ok, msg = set_bench(db, season, managed_team.id, player_ids)
+            console.print(msg)
+            
+        elif choice == "10":
+            bench = get_bench_players(db, season, managed_team.id)
+
+            if not bench:
+                console.print("No bench set.")
+                continue
+            
+            t = Table(title="Bench")
+            t.add_column("#", justify="right")
+            t.add_column("Name")
+            t.add_column("Pos", justify="center")
+            t.add_column("Overall", justify="right")
+            
+            i = 1
+            for p in bench:
+                t.add_row(str(i), p.name, p.pos, str(int(p.overall)))
+                i += 1
+
+            console.print(t)
+            
+        elif choice == "11":
+            current = get_team_tactic(db, season, managed_team.id)
+            console.print(f"Current tactic: {current}")
+            
+            t = Table(title="Tactics")
+            t.add_column("#", justify="right")
+            t.add_column("Tactic")
+            t.add_column("Effect")
+
+            names = list(TACTICS.keys())
+            
+            i = 1
+            for name in names:
+                mode = TACTICS[name]
+                apply = f"ATK x{mode['atk']:.2f}, DEF x{mode['def']:.2f}"
+                t.add_row(str(i), name, apply)
+                i += 1
+
+            console.print(t)
+
+            pick = input("Choose tactic #?: ").strip()
+            if not pick.isdigit():
+                console.print("Invalid number")
+                continue
+
+            n = int(pick)
+            if n < 1 or n > len(names):
+                console.print("Out of range")
+                continue
+
+            tactic = names[n - 1]
+            ok, msg = set_team_tactic(db, season, managed_team.id, tactic)
+            console.print(msg)
+            
         elif choice == "0":
             console.print("Thanks for playing.")
             return
