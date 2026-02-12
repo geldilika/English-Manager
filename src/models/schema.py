@@ -146,7 +146,12 @@ class TeamTactics(Base):
     
     formation = Column(String, nullable=False, default="4-3-3")
     tactic = Column(String, nullable=False, default="Balanced")
-
+    
+    pressing = Column(String, nullable=False, default="Normal")
+    tempo = Column(String, nullable=False, default="Normal")
+    width = Column(String, nullable=False, default="Balanced")
+    line_height = Column(String, nullable=False, default="Normal")
+    directness = Column(String, nullable=False, default="Mixed")
 
     __table_args__ = (
         UniqueConstraint("season", "team_id", name="uq_team_tactics_season_team"),
