@@ -66,6 +66,9 @@ def simulate_fixture(db, season, fixture):
     away_atk *= float(away_mode["atk"])
     away_def *= float(away_mode["def"])
     
+    home_xg = 1.25 + (home_atk - away_def) * 0.015 + random.gauss(0, 0.12)
+    away_xg = 1.10 + (away_atk - home_def) * 0.015 + random.gauss(0, 0.12)
+
     home_xg = home_xg * (0.98 + 0.02 * float(home_mode["shots"]))
     away_xg = away_xg * (0.98 + 0.02 * float(away_mode["shots"]))
     
@@ -112,7 +115,7 @@ def get_starting_xi(db, season, team_id):
         players = (
             db.query(Player)
             .filter(Player.team_id == team_id)
-            .order_by(Player.overall,desc())
+            .order_by(Player.overall.desc())
             .limit(11)
             .all()
         )
