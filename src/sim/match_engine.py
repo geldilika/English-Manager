@@ -2,7 +2,7 @@ import random
 
 from sqlalchemy import desc
 from src.models.schema import Player, Result, Lineup
-from src.sim.squad import get_team_tactic, TACTICS
+from src.sim.tactics_engine import get_team_tactics, compute_mode, apply_style_matchup
 
 def team_strength(db, season, team_id):
     rows = (
@@ -30,14 +30,8 @@ def team_strength(db, season, team_id):
         atk_total += float(p.attack)
         def_total += float(p.defend)
 
-    attack = atk_total / len(players)
-    defend = def_total / len(players)
-    
-    tactic = get_team_tactic(db, season, team_id)
-    mode = TACTICS.get(tactic, TACTICS["Balanced"])
-    
-    attack *= float(mode["atk"])
-    defend *= float(mode["def"])
+    attack = atk_total / float(len(players))
+    defend = def_total / float(len(players))
     
     return attack, defend
 
@@ -56,11 +50,27 @@ def simulate_fixture(db, season, fixture):
     if existing:
         return existing
     
+    home_row = get_team_tactics(db, season, fixture.home_team_id)
+    away_row = get_team_tactics(db, season, fixture.away_team_id)
+
+    home_mode = compute_mode(home_row)
+    away_mode = compute_mode(away_row)
+    
+    home_mode, away_mode = apply_style_matchup(home_mode, away_mode)
+    
     home_atk, home_def = team_strength(db, season, fixture.home_team_id)
     away_atk, away_def = team_strength(db, season, fixture.away_team_id)
     
+    home_atk *= float(home_mode["atk"])
+    home_def *= float(home_mode["def"])
+    away_atk *= float(away_mode["atk"])
+    away_def *= float(away_mode["def"])
+    
     home_xg = 1.25 + (home_atk - away_def) * 0.015 + random.gauss(0, 0.12)
     away_xg = 1.10 + (away_atk - home_def) * 0.015 + random.gauss(0, 0.12)
+
+    home_xg = home_xg * (0.98 + 0.02 * float(home_mode["shots"]))
+    away_xg = away_xg * (0.98 + 0.02 * float(away_mode["shots"]))
     
     if home_xg < 0.2:
         home_xg = 0.2
@@ -70,8 +80,8 @@ def simulate_fixture(db, season, fixture):
     home_goals = goals_from_xg(home_xg)
     away_goals = goals_from_xg(away_xg)
 
-    home_shots = max(1, int(random.gauss(home_xg * 8, 2)))
-    away_shots = max(1, int(random.gauss(away_xg * 8, 2)))
+    home_shots = max(1, int(random.gauss(home_xg * 8 * float(home_mode["shots"]), 2)))
+    away_shots = max(1, int(random.gauss(away_xg * 8 * float(away_mode["shots"]), 2)))
     
     result = Result(
         fixture_id=fixture.id,
@@ -105,7 +115,7 @@ def get_starting_xi(db, season, team_id):
         players = (
             db.query(Player)
             .filter(Player.team_id == team_id)
-            .order_by(Player.overall,desc())
+            .order_by(Player.overall.desc())
             .limit(11)
             .all()
         )

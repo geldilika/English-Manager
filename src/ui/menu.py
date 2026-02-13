@@ -7,6 +7,7 @@ from src.models.schema import Team, Player
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
 from src.sim.transfers import get_transfer_list, list_player_for_transfer, search_targets, add_to_shortlist, remove_from_shortlist, get_shortlist_players, buy_player, unlist_player
+from src.sim.tactics_engine import get_team_tactics
 
 console = Console()
 
@@ -76,6 +77,21 @@ def show_my_club(db, season, team):
             str(int(p.defend)),
         )
     console.print(table)
+    
+def show_team_tactics(db, season, team_id):
+    row = get_team_tactics(db, season, team_id)
+    
+    table = Table(title="Current Tactics")
+    table.add_column("Setting")
+    table.add_column("Value")
+    
+    table.add_row("Formation", row.formation)
+    table.add_row("Tactic", row.tactic)
+    table.add_row("Pressing", row.pressing)
+    table.add_row("Tempo", row.tempo)
+    table.add_row("Width", row.width)
+    table.add_row("Line Height", row.line_height)
+    table.add_row("Directness", row.directness)
     
 def run_menu(db, league, season, managed_team):
     current_matchday = 1
@@ -557,38 +573,87 @@ def run_menu(db, league, season, managed_team):
             console.print(t)
             
         elif choice == "11":
-            current = get_team_tactic(db, season, managed_team.id)
-            console.print(f"Current tactic: {current}")
-            
-            t = Table(title="Tactics")
-            t.add_column("#", justify="right")
-            t.add_column("Tactic")
-            t.add_column("Effect")
+            while True:
+                console.print("\n[bold]Tactics Menu[/bold]")
+                console.print("1) View current tactics")
+                console.print("2) Change formation")
+                console.print("3) Change tactic (Attacking/Balanced/Defensive)")
+                console.print("4) Change pressing")
+                console.print("5) Change tempo")
+                console.print("6) Change width")
+                console.print("7) Change line height")
+                console.print("8) Change directness")
+                console.print("0) Back")
 
-            names = list(TACTICS.keys())
-            
-            i = 1
-            for name in names:
-                mode = TACTICS[name]
-                apply = f"ATK x{mode['atk']:.2f}, DEF x{mode['def']:.2f}"
-                t.add_row(str(i), name, apply)
-                i += 1
+                sub = input("Choose: ").strip()
 
-            console.print(t)
+                if sub == "0":
+                    break
 
-            pick = input("Choose tactic #?: ").strip()
-            if not pick.isdigit():
-                console.print("Invalid number")
-                continue
+                elif sub == "1":
+                    row = get_team_tactics(db, season, managed_team.id)
+                    
+                    t = Table(title="Current Tactics")
+                    t.add_column("Setting")
+                    t.add_column("Value")
 
-            n = int(pick)
-            if n < 1 or n > len(names):
-                console.print("Out of range")
-                continue
+                    t.add_row("Formation", str(row.formation))
+                    t.add_row("Tactic", str(row.tactic))
+                    t.add_row("Pressing", str(row.pressing))
+                    t.add_row("Tempo", str(row.tempo))
+                    t.add_row("Width", str(row.width))
+                    t.add_row("Line Height", str(row.line_height))
+                    t.add_row("Directness", str(row.directness))
 
-            tactic = names[n - 1]
-            ok, msg = set_team_tactic(db, season, managed_team.id, tactic)
-            console.print(msg)
+                    console.print(t)
+                    
+                elif sub == "2":
+                    form = input("Enter formation (e.g. 4-3-3): ").strip()
+                    ok, msg = set_team_formation(db, season, managed_team.id, form)
+                    console.print(msg)
+
+                elif sub == "3":
+                    t = input("Attacking / Balanced / Defensive: ").strip()
+                    ok, msg = set_team_tactic(db, season, managed_team.id, t)
+                    console.print(msg)
+
+                elif sub == "4":
+                    p = input("Low / Normal / High: ").strip()
+                    row = get_team_tactics(db, season, managed_team.id)
+                    row.pressing = p
+                    db.commit()
+                    console.print("Pressing updated.")
+
+                elif sub == "5":
+                    t = input("Slow / Normal / Fast: ").strip()
+                    row = get_team_tactics(db, season, managed_team.id)
+                    row.tempo = t
+                    db.commit()
+                    console.print("Tempo updated.")
+
+                elif sub == "6":
+                    w = input("Narrow / Balanced / Wide: ").strip()
+                    row = get_team_tactics(db, season, managed_team.id)
+                    row.width = w
+                    db.commit()
+                    console.print("Width updated.")
+
+                elif sub == "7":
+                    lh = input("Deep / Normal / High: ").strip()
+                    row = get_team_tactics(db, season, managed_team.id)
+                    row.line_height = lh
+                    db.commit()
+                    console.print("Line height updated.")
+
+                elif sub == "8":
+                    d = input("Short / Mixed / Direct: ").strip()
+                    row = get_team_tactics(db, season, managed_team.id)
+                    row.directness = d
+                    db.commit()
+                    console.print("Directness updated.")
+
+                else:
+                    console.print("Invalid option.")
             
         elif choice == "0":
             console.print("Thanks for playing.")
