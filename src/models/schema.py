@@ -156,3 +156,20 @@ class TeamTactics(Base):
     __table_args__ = (
         UniqueConstraint("season", "team_id", name="uq_team_tactics_season_team"),
     )
+    
+class PlayerCondition(Base):
+    __tablename__ = "player_conditions"
+    
+    id = Column(Integer, primary_key=True)
+    season = Column(String, nullable=False)
+    
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+    
+    fatigue = Column(Float, nullable=False, default=0.0)
+    
+    injured_until = Column(Integer, nullable=False, default=0)
+    
+    __table_args__ = (
+        UniqueConstraint("season", "team_id", "player_id", name="uq_condition_season_team_player"),
+    )
