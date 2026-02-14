@@ -38,7 +38,7 @@ def remove_injured(db, season, team_id, players, matchday):
     return out
 
 def maybe_injure_team(db, season, team_id, players_used, matchday, intensity=1.0):
-    chance = 0.015 + (float(intensity) - 1.0) * 0.01
+    chance = 0.05 + (float(intensity) - 1.0) * 0.01
     if chance < 0.01:
         chance = 0.01
     if chance > 0.05:
