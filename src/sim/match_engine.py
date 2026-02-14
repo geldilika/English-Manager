@@ -23,7 +23,6 @@ def team_strength(db, season, team_id):
             
     if not players:
         players = get_starting_xi(db, season, team_id)
-        return 50.0, 50.0
 
     atk_total = 0.0
     def_total = 0.0
@@ -187,7 +186,7 @@ def get_starting_xi(db, season, team_id):
         db.query(Lineup)
         .filter(Lineup.season == season)
         .filter(Lineup.team_id == team_id)
-        .filter(Lineup.is_starting == True)
+        .filter(Lineup.role == "START")
         .all()
     )
     

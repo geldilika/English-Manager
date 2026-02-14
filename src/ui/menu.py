@@ -8,6 +8,7 @@ from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
 from src.sim.transfers import get_transfer_list, list_player_for_transfer, search_targets, add_to_shortlist, remove_from_shortlist, get_shortlist_players, buy_player, unlist_player
 from src.sim.tactics_engine import get_team_tactics
+from src.sim.injuries import get_injury_list
 
 console = Console()
 
@@ -111,6 +112,7 @@ def run_menu(db, league, season, managed_team):
         console.print("9) Set Bench")
         console.print("10) Show Bench")
         console.print("11) Set tactic")
+        console.print("12) Injury List")
         console.print("0) Exit")
 
         choice = input("Choose: ").strip()
@@ -654,6 +656,25 @@ def run_menu(db, league, season, managed_team):
 
                 else:
                     console.print("Invalid option.")
+        
+        elif choice == "12":
+            rows = get_injury_list(db, season, managed_team.id, current_matchday)
+            
+            if not rows:
+                console.print("No Injuries")
+                
+            t = Table(title="Injuries")
+            t.add_column("Name")
+            t.add_column("Return GW", justify="right")
+            t.add_column("Fatigue", justify="right")
+            
+            i = 0
+            while i < len(rows):
+                p, c = rows[i]
+                t.add_row(p.name, str(int(c.injured_until)), f"{int(float(c.fatigue) * 100)}%")
+                i += 1
+
+            console.print(t)
             
         elif choice == "0":
             console.print("Thanks for playing.")
