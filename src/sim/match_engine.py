@@ -1,8 +1,10 @@
 import random
+from operator import attrgetter
 
 from sqlalchemy import desc
 from src.models.schema import Player, Result, Lineup
 from src.sim.tactics_engine import get_team_tactics, compute_mode, apply_style_matchup
+from src.sim.injuries import remove_injured, maybe_injure_team
 
 def team_strength(db, season, team_id):
     rows = (
@@ -45,7 +47,65 @@ def goals_from_xg(xg):
             goals += 1
     return goals
 
-def simulate_fixture(db, season, fixture):
+def strength_from_players(players):
+    if not players:
+        return 50.0, 50.0
+
+    atk_total = 0.0
+    def_total = 0.0
+
+    i = 0
+    while i < len(players):
+        p = players[i]
+        atk_total += float(p.attack)
+        def_total += float(p.defend)
+        i += 1
+
+    return atk_total / float(len(players)), def_total / float(len(players))
+
+def get_lineup_players(db, season, team_id, role):
+    rows = (
+        db.query(Lineup)
+        .filter(Lineup.season == season)
+        .filter(Lineup.team_id == team_id)
+        .filter(Lineup.role == role)
+        .all()
+    )
+
+    players = []
+    i = 0
+    while i < len(rows):
+        r = rows[i]
+        p = db.get(Player, r.player_id)
+        if p is not None and int(p.team_id) == int(team_id):
+            players.append(p)
+        i += 1
+
+    return players
+
+def fill_to_11(starters, bench):
+    bench_sorted = []
+    i = 0
+    while i < len(bench):
+        bench_sorted.append(bench[i])
+        i += 1
+
+    bench_sorted.sort(key=attrgetter("overall"), reverse=True)
+
+    used = []
+    i = 0
+    while i < len(starters):
+        used.append(starters[i])
+        i += 1
+
+    j = 0
+    while len(used) < 11 and j < len(bench_sorted):
+        used.append(bench_sorted[j])
+        j += 1
+
+    return used
+
+def simulate_fixture(db, season, matchday, fixture, events=None):
     existing = db.query(Result).filter_by(fixture_id=fixture.id).first()
     if existing:
         return existing
@@ -58,8 +118,34 @@ def simulate_fixture(db, season, fixture):
     
     home_mode, away_mode = apply_style_matchup(home_mode, away_mode)
     
-    home_atk, home_def = team_strength(db, season, fixture.home_team_id)
-    away_atk, away_def = team_strength(db, season, fixture.away_team_id)
+    home_start = get_lineup_players(db, season, fixture.home_team_id, "START")
+    home_bench = get_lineup_players(db, season, fixture.home_team_id, "BENCH")
+    away_start = get_lineup_players(db, season, fixture.away_team_id, "START")
+    away_bench = get_lineup_players(db, season, fixture.away_team_id, "BENCH")
+    
+    home_start = remove_injured(db, season, fixture.home_team_id, home_start, matchday)
+    home_bench = remove_injured(db, season, fixture.home_team_id, home_bench, matchday)
+    away_start = remove_injured(db, season, fixture.away_team_id, away_start, matchday)
+    away_bench = remove_injured(db, season, fixture.away_team_id, away_bench, matchday)
+    
+    home_used = fill_to_11(home_start, home_bench)
+    away_used = fill_to_11(away_start, away_bench)
+    
+    inj_home = maybe_injure_team(
+        db, season, fixture.home_team_id, home_used, matchday, intensity=float(home_mode["intensity"])
+    )
+    inj_away = maybe_injure_team(
+        db, season, fixture.away_team_id, away_used, matchday, intensity=float(away_mode["intensity"])
+    )
+    
+    if events is not None:
+        if inj_home:
+            events.append(f"[red]{inj_home[0]} injured ({inj_home[1]} GW)[/red]")
+        if inj_away:
+            events.append(f"[red]{inj_away[0]} injured ({inj_away[1]} GW)[/red]")
+    
+    home_atk, home_def = strength_from_players(home_used)
+    away_atk, away_def = strength_from_players(away_used)
     
     home_atk *= float(home_mode["atk"])
     home_def *= float(home_mode["def"])
