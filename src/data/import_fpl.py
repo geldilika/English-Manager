@@ -167,7 +167,9 @@ def import_pl_from_fpl(db, season):
             now_cost = 0
             
         fpl_id = int(row.get("id", 0))
-        
+
+        age = 24
+
         dob = birth_by_id.get(fpl_id)
 
         if dob:
