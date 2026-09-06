@@ -56,14 +56,15 @@ def set_starting_xi(db, season, team_id, player_ids):
     db.query(Lineup).filter(
         Lineup.season == season,
         Lineup.team_id == team_id,
-    ). delete()
-    
+        Lineup.role == "START"
+    ).delete()
+
     for p in player_ids:
         db.add(Lineup(
-            season = season,
-            team_id = team_id,
-            player_id = p,
-            is_starting = True
+            season=season,
+            team_id=team_id,
+            player_id=p,
+            role="START"
         ))
         
     db.commit()
@@ -74,7 +75,7 @@ def get_starting_xi(db, season, team_id):
         db.query(Lineup)
         .filter(Lineup.season == season)
         .filter(Lineup.team_id == team_id)
-        .filter(Lineup.is_starting == True)
+        .filter(Lineup.role == "START")
         .all()
     )
     

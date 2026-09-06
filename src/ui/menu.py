@@ -3,7 +3,7 @@ from rich.console import Console
 from rich.table import Table
 
 from src.sim.squad import get_bench_players, get_starting_xi, set_bench, set_starting_xi, set_team_formation, get_team_formation, FORMATIONS, squad_star_ratings, set_team_tactic, get_team_tactic, TACTICS
-from src.models.schema import Team, Player
+from src.models.schema import Team, Player, Fixture, Result
 from src.ui.cli import print_matchday, league_table
 from src.sim.season import simulate_matchday
 from src.sim.transfers import get_transfer_list, list_player_for_transfer, search_targets, add_to_shortlist, remove_from_shortlist, get_shortlist_players, buy_player, unlist_player
@@ -94,8 +94,27 @@ def show_team_tactics(db, season, team_id):
     table.add_row("Line Height", row.line_height)
     table.add_row("Directness", row.directness)
     
+def get_current_matchday(db, league_id, season):
+    played = (
+        db.query(Fixture.matchday)
+        .join(Result, Result.fixture_id == Fixture.id)
+        .filter(Fixture.league_id == league_id)
+        .filter(Fixture.season == season)
+        .all()
+    )
+
+    if not played:
+        return 1
+
+    latest_matchday = max(row[0] for row in played)
+
+    if latest_matchday >= 38:
+        return 38
+
+    return latest_matchday + 1
+    
 def run_menu(db, league, season, managed_team):
-    current_matchday = 1
+    current_matchday = get_current_matchday(db, league.id, season)
     
     while True:
         console.print("\n[bold]==== Manager Menu ==== [/bold]")
